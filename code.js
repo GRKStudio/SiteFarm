@@ -241,7 +241,7 @@ const Views = {
     },
 
     mount(){
-      this.btnChange.onclick = ()=> Utils.go('/');
+      this.btnChange.onclick = ()=> Utils.go('/login');
       this.btnForget.onclick = ()=>{
         Store.deviceId = '';
         Utils.go('/login');
