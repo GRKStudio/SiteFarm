@@ -1,3 +1,4 @@
+[hidden] { display: none !important; }
 :root{--bg:#0b0f16;--card:#111826;--muted:#99a3b3;--fg:#eaf1ff;--acc:#4da3ff;--ok:#39d98a;--warn:#ffcf5a;--err:#ff6b6b;}
 *{box-sizing:border-box}
 body{margin:0;font:14px/1.4 system-ui,Segoe UI,Roboto,Inter,Arial;background:var(--bg);color:var(--fg)}
