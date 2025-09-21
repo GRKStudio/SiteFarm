@@ -1,21 +1,14 @@
 /* ==========================================================
-   Smart Farm Web — Шаги 1 и 4 выполнены, добавляем живой MQTT.
-   Маршруты + cookie deviceId уже есть.
-   Здесь реализуем подключение к брокеру по WSS через mqtt.js.
-
-   Архитектура:
-   - Utils / Store / EventHub
-   - MQTT: connect/disconnect/publishCmd + auto-subscribe
-   - Views: Login, Dashboard (добавлен вывод статуса)
-   - Router/App — без изменений по контракту
-
-   Безопасность сознательно опущена.
+   Smart Farm Web — маршруты: #/, #/login, #/d/:deviceId
+   + cookie deviceId + живой MQTT через mqtt.js (WSS)
+   Архитектура: Utils / Store / EventHub / MQTT / Views / Router / App
 ========================================================== */
 
 // -------------------- Utils --------------------
 const Utils = {
   qs: (sel, root=document)=> root.querySelector(sel),
   setHidden: (el, v)=> el.hidden = !!v,
+
   // cookie-хелперы
   setCookie(name, val, days=365){
     const exp = new Date(Date.now()+days*864e5).toUTCString();
@@ -28,21 +21,24 @@ const Utils = {
     }, '');
   },
   delCookie(name){ document.cookie = `${name}=; Max-Age=0; path=/`; },
-  // роут /d/:id
+
+  // hash-роутинг: #/, #/login, #/d/:id
   parseRoute(){
-    const h = location.hash || 'SiteFarm/';
-    if (h.startsWith('SiteFarm/d/')) {
+    const h = location.hash || '#/';
+    if (h === '#/' || h === '#') return { name:'home' };
+    if (h.startsWith('#/login')) return { name:'login' };
+    if (h.startsWith('#/d/')) {
       const id = decodeURIComponent(h.slice(4)); // после '#/d/'
       return { name:'device', params:{ deviceId:id } };
     }
     return { name:'home' };
   },
-  go(path){               // path: '/d/<id>' или '/'
-    location.hash = path;
+  go(path){               // path: '/login', '/d/<id>' или '/'
+    location.hash = '#' + path;
     App.router.handle();
   },
   replace(path){
-    const newHash = path;
+    const newHash = '#' + path;
     if (location.hash !== newHash) {
       location.replace(location.pathname + location.search + newHash);
     }
@@ -66,7 +62,6 @@ const Store = {
   get deviceId(){ return Utils.getCookie(this.COOKIE_KEY) || ''; },
   set deviceId(v){ v ? Utils.setCookie(this.COOKIE_KEY, v) : Utils.delCookie(this.COOKIE_KEY); },
 
-  // сохраняем последние MQTT-настройки для удобства
   saveMqttOpts(o){
     localStorage.sf_host = o.host || '';
     localStorage.sf_port = o.port || '';
@@ -85,14 +80,13 @@ const Store = {
 
 // -------------------- MQTT реализация --------------------
 /**
- * Контракт:
  * MQTT.connect({host,port,path,clientId,deviceId})
  * MQTT.disconnect()
  * MQTT.publishCmd(text)
  * События:
- *  - 'mqtt:status'   => {status:'online'|'offline'|'reconnecting'|'error'}
- *  - 'mqtt:message'  => {topic, text}
- *  - 'mqtt:topics'   => {cmd, status}
+ *  - 'mqtt:status'  => {status:'online'|'offline'|'reconnecting'|'error'}
+ *  - 'mqtt:message' => {topic, text}
+ *  - 'mqtt:topics'  => {cmd, status}
  */
 const MQTT = {
   client: null,
@@ -101,14 +95,12 @@ const MQTT = {
   currentDeviceId: null,
 
   connect({ host, port, path, clientId, deviceId }){
-    // если уже подключены к другому устройству — отключимся
     if(this.client){ try{ this.client.end(true); }catch{} this.client = null; }
     this.currentDeviceId = deviceId;
     this.topics.cmd = `farm/${deviceId}/cmd`;
     this.topics.status = `farm/${deviceId}/status`;
     EventHub.emit('mqtt:topics', { ...this.topics });
 
-    // Собираем WSS URL
     const url = `wss://${host}:${port}${path}`;
     const opts = {
       clientId: clientId?.trim() || `sfw_${deviceId}_${Math.random().toString(16).slice(2)}`,
@@ -117,16 +109,14 @@ const MQTT = {
     };
     Store.saveMqttOpts({host,port,path,clientId:opts.clientId});
 
-    // Глобальный mqtt из <script src="https://unpkg.com/mqtt/dist/mqtt.min.js">
+    // mqtt.js доступен глобально из <script src="https://unpkg.com/mqtt/dist/mqtt.min.js">
     this.client = mqtt.connect(url, opts);
 
     this.client.on('connect', ()=>{
       this.isConnected = true;
       EventHub.emit('mqtt:status', {status:'online'});
-      // подписка на статус
       this.client.subscribe(this.topics.status, {qos:0}, (err)=>{
         if(err){ console.error('subscribe error', err); }
-        // сразу запросим статус
         this.publishCmd('SHOW');
       });
     });
@@ -169,12 +159,21 @@ const MQTT = {
 
 // -------------------- Views --------------------
 const Views = {
+  Home: {
+    el: Utils.qs('#view-home'),
+    btnGoLogin: Utils.qs('#btnGoLogin'),
+    show(){ Utils.setHidden(this.el, false); },
+    hide(){ Utils.setHidden(this.el, true); },
+    mount(){
+      this.btnGoLogin.onclick = ()=> Utils.go('/login');
+    }
+  },
+
   Login: {
     el: Utils.qs('#view-login'),
     input: Utils.qs('#loginDeviceId'),
     btnProceed: Utils.qs('#btnProceed'),
     btnUseCookie: Utils.qs('#btnUseCookie'),
-
     show(){
       Utils.setHidden(this.el, false);
       this.input.value = Store.deviceId || '';
@@ -198,7 +197,7 @@ const Views = {
   Dashboard: {
     el: Utils.qs('#view-dashboard'),
     idEl: Utils.qs('#currentDeviceId'),
-    // MQTT-конфиг элементы
+    // MQTT-конфиг
     hostEl: Utils.qs('#mqttHost'),
     portEl: Utils.qs('#mqttPort'),
     pathEl: Utils.qs('#mqttPath'),
@@ -210,7 +209,7 @@ const Views = {
     btnForget: Utils.qs('#btnForgetDevice'),
     btnConnect: Utils.qs('#btnConnect'),
     btnDisconnect: Utils.qs('#btnDisconnect'),
-    // базовые команды
+    // команды
     btnShow: Utils.qs('#btnShow'),
     btnLightOn: Utils.qs('#btnLightOn'),
     btnLightAuto: Utils.qs('#btnLightAuto'),
@@ -223,14 +222,12 @@ const Views = {
       this.idEl.textContent = deviceId;
       if(Store.deviceId !== deviceId) Store.deviceId = deviceId;
 
-      // подставим сохранённые MQTT-опции (удобство)
       const saved = Store.loadMqttOpts();
       if(!this.hostEl.value) this.hostEl.value = saved.host;
       if(!this.portEl.value) this.portEl.value = saved.port;
       if(!this.pathEl.value) this.pathEl.value = saved.path;
       if(!this.clientEl.value) this.clientEl.value = saved.clientId;
 
-      // обновим предпросмотр топиков даже до подключения
       this.setTopics(`farm/${deviceId}/cmd ⇄ farm/${deviceId}/status`);
     },
     hide(){ Utils.setHidden(this.el, true); },
@@ -244,14 +241,12 @@ const Views = {
     },
 
     mount(){
-      // сменить/забыть устройство
       this.btnChange.onclick = ()=> Utils.go('/');
       this.btnForget.onclick = ()=>{
         Store.deviceId = '';
-        Utils.go('/');
+        Utils.go('/login');
       };
 
-      // события MQTT → UI
       EventHub.on('mqtt:status', ({status})=>{
         this.setConnStatus(status);
       });
@@ -259,12 +254,9 @@ const Views = {
         this.setTopics(`${cmd} ⇄ ${status}`);
       });
       EventHub.on('mqtt:message', ({topic, text})=>{
-        // Пока просто выводим весь статус в коробку.
-        // Позже сюда добавим нормализатор и графики.
-        this.appendStatus(text);
+        this.appendStatus(text); // дальше добавим парсер и графики
       });
 
-      // подключение/отключение
       this.btnConnect.onclick = ()=>{
         const deviceId = this.idEl.textContent.trim();
         MQTT.connect({
@@ -277,7 +269,6 @@ const Views = {
       };
       this.btnDisconnect.onclick = ()=> MQTT.disconnect();
 
-      // команды
       this.btnShow.onclick = ()=> MQTT.publishCmd('SHOW');
       this.btnLightOn.onclick = ()=> MQTT.publishCmd('LIGHT ON');
       this.btnLightAuto.onclick = ()=> MQTT.publishCmd('LIGHT AUTO');
@@ -290,26 +281,23 @@ const Views = {
 const Router = {
   handle(){
     const route = Utils.parseRoute();
+
     // скрыть все
+    Views.Home.hide();
     Views.Login.hide();
     Views.Dashboard.hide();
 
     if(route.name === 'home'){
-      const saved = Store.deviceId;
-      if(saved){
-        Utils.replace(`/d/${encodeURIComponent(saved)}`);
-        return;
-      }
+      Views.Home.show();
+      return;
+    }
+    if(route.name === 'login'){
       Views.Login.show();
       return;
     }
-
     if(route.name === 'device'){
       const id = (route.params.deviceId || '').trim();
-      if(!id){
-        Utils.replace('/');
-        return;
-      }
+      if(!id){ Utils.replace('/login'); return; }
       Views.Dashboard.show(id);
       return;
     }
@@ -324,10 +312,10 @@ const Router = {
 const App = {
   router: Router,
   start(){
+    Views.Home.mount();
     Views.Login.mount();
     Views.Dashboard.mount();
     this.router.mount();
-    // аккуратно закрываем MQTT при выгрузке страницы
     window.addEventListener('beforeunload', ()=> MQTT.disconnect());
   }
 };
