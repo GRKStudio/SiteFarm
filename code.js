@@ -1,7 +1,7 @@
 /* ==========================================================
    Smart Farm Web — маршруты: #/, #/login, #/d/:deviceId
-   + cookie deviceId + живой MQTT через mqtt.js (WSS)
-   Архитектура: Utils / Store / EventHub / MQTT / Views / Router / App
+   + cookie deviceId + живой MQTT + графики (Chart.js)
+   Архитектура: Utils / Store / EventHub / MQTT / Telemetry / Views / Router / App
 ========================================================== */
 
 // -------------------- Utils --------------------
@@ -44,6 +44,8 @@ const Utils = {
     }
     App.router.handle();
   },
+
+  nowISO(){ return new Date().toISOString(); }
 };
 
 // -------------------- Маленькая событийная шина --------------------
@@ -135,7 +137,7 @@ const MQTT = {
     });
     this.client.on('message', (topic, payload)=>{
       const text = payload.toString();
-      EventHub.emit('mqtt:message', { topic, text });
+      EventHub.emit('mqtt:message', { topic, text, ts: Date.now() });
     });
   },
 
@@ -154,6 +156,126 @@ const MQTT = {
       return;
     }
     this.client.publish(this.topics.cmd, text, {qos:0, retain:false});
+  }
+};
+
+// -------------------- Telemetry (парсер + графики + история) --------------------
+/**
+ * Парсит компактный статус:
+ * "S1=1830(M1200..X2000) Z1=OFF | S2=1950(M1200..X2000) Z2=ON | PUMP=ON | LIGHT=OFF 60s/30s"
+ * и обновляет:
+ *  - Chart.js (datasets на лету по найденным зонам)
+ *  - локальную историю в localStorage (по девайсу)
+ */
+const Telemetry = {
+  chart: null,
+  datasetsByZone: new Map(), // k -> dataset index
+  historyKey(devId){ return `sf_hist_${devId}`; }, // per-device
+  maxPoints: 1000, // храним до 1000 точек на зону (можно увеличить)
+
+  initChart(){
+    const ctx = document.getElementById('chart')?.getContext('2d');
+    if(!ctx) return;
+    this.chart = new Chart(ctx, {
+      type: 'line',
+      data: { labels: [], datasets: [] },
+      options: {
+        responsive: true,
+        animation: false,
+        plugins: { legend: { labels: { color: '#eaf1ff' } } },
+        scales: {
+          x: { ticks: { color: '#99a3b3' }, grid: { color: 'rgba(255,255,255,0.05)'} },
+          y: { ticks: { color: '#99a3b3' }, grid: { color: 'rgba(255,255,255,0.05)'} }
+        }
+      }
+    });
+  },
+
+  ensureDataset(zoneLabel){
+    if(this.datasetsByZone.has(zoneLabel)) return this.datasetsByZone.get(zoneLabel);
+    const idx = this.chart.data.datasets.length;
+    this.chart.data.datasets.push({
+      label: zoneLabel,
+      data: [],
+      borderWidth: 2,
+      tension: .25,
+      fill: false
+    });
+    this.datasetsByZone.set(zoneLabel, idx);
+    return idx;
+  },
+
+  pushPoint(deviceId, zoneNum, soil, ts){
+    if(!this.chart) return;
+    const label = `S${zoneNum}`;
+    const idx = this.ensureDataset(label);
+    const t = new Date(ts).toLocaleTimeString();
+
+    // labels — общая шкала времени
+    const labels = this.chart.data.labels;
+    if(labels.length > this.maxPoints) labels.shift();
+    labels.push(t);
+
+    // данные по зоне
+    const ds = this.chart.data.datasets[idx].data;
+    if(ds.length > this.maxPoints) ds.shift();
+    ds.push(soil);
+
+    this.chart.update('none');
+
+    // сохраним в localStorage (пер-устройство)
+    try {
+      const key = this.historyKey(deviceId);
+      const raw = localStorage.getItem(key);
+      const bag = raw ? JSON.parse(raw) : {};
+      const arr = bag[label] || [];
+      arr.push({ ts, v: soil });
+      if(arr.length > this.maxPoints) arr.splice(0, arr.length - this.maxPoints);
+      bag[label] = arr;
+      localStorage.setItem(key, JSON.stringify(bag));
+    } catch(e){ console.warn('hist save failed', e); }
+  },
+
+  loadHistoryToChart(deviceId){
+    try{
+      const key = this.historyKey(deviceId);
+      const bag = JSON.parse(localStorage.getItem(key) || '{}');
+      this.chart.data.labels = [];
+      this.chart.data.datasets = [];
+      this.datasetsByZone.clear();
+
+      // соберём объединённую шкалу времени из наибольшей серии
+      let longest = 0, baseSeries = null;
+      for(const zoneLabel in bag){
+        if(bag[zoneLabel].length > longest){
+          longest = bag[zoneLabel].length;
+          baseSeries = bag[zoneLabel];
+        }
+      }
+      if(baseSeries){
+        this.chart.data.labels = baseSeries.map(p => new Date(p.ts).toLocaleTimeString());
+      }
+
+      for(const zoneLabel in bag){
+        const idx = this.ensureDataset(zoneLabel);
+        this.chart.data.datasets[idx].data = bag[zoneLabel].map(p => p.v);
+      }
+      this.chart.update('none');
+    }catch(e){ console.warn('hist load failed', e); }
+  },
+
+  // Парсим строку статуса и забираем значения зон
+  parseAndFeed(deviceId, text, ts){
+    // Разбиваем по " | "
+    const parts = text.split('|').map(s=>s.trim());
+    parts.forEach(p=>{
+      // S<k>=<val>(M<min>..X<max>) Z<k>=MODE
+      const m = p.match(/^S(\d+)=(\d+)\(M(\d+)\.\.X(\d+)\)\s+Z\1=(AUTO|ON|OFF)$/i);
+      if(m){
+        const k = +m[1], val = +m[2];
+        this.pushPoint(deviceId, k, val, ts);
+      }
+    });
   }
 };
 
@@ -229,6 +351,10 @@ const Views = {
       if(!this.clientEl.value) this.clientEl.value = saved.clientId;
 
       this.setTopics(`farm/${deviceId}/cmd ⇄ farm/${deviceId}/status`);
+
+      // Инициализируем графики и грузим локальную историю для этого девайса
+      Telemetry.initChart();
+      Telemetry.loadHistoryToChart(deviceId);
     },
     hide(){ Utils.setHidden(this.el, true); },
 
@@ -247,16 +373,21 @@ const Views = {
         Utils.go('/login');
       };
 
+      // MQTT → UI + Telemetry
       EventHub.on('mqtt:status', ({status})=>{
         this.setConnStatus(status);
       });
       EventHub.on('mqtt:topics', ({cmd, status})=>{
         this.setTopics(`${cmd} ⇄ ${status}`);
       });
-      EventHub.on('mqtt:message', ({topic, text})=>{
-        this.appendStatus(text); // дальше добавим парсер и графики
+      EventHub.on('mqtt:message', ({topic, text, ts})=>{
+        this.appendStatus(text);
+        // Парсим и кормим графики (если статус — компактный)
+        const deviceId = this.idEl.textContent.trim();
+        Telemetry.parseAndFeed(deviceId, text, ts || Date.now());
       });
 
+      // Подключение/отключение
       this.btnConnect.onclick = ()=>{
         const deviceId = this.idEl.textContent.trim();
         MQTT.connect({
@@ -269,6 +400,7 @@ const Views = {
       };
       this.btnDisconnect.onclick = ()=> MQTT.disconnect();
 
+      // команды
       this.btnShow.onclick = ()=> MQTT.publishCmd('SHOW');
       this.btnLightOn.onclick = ()=> MQTT.publishCmd('LIGHT ON');
       this.btnLightAuto.onclick = ()=> MQTT.publishCmd('LIGHT AUTO');
@@ -312,6 +444,9 @@ const Router = {
 const App = {
   router: Router,
   start(){
+    // на всякий случай скрыть все view перед первым рендером
+    document.querySelectorAll('section[id^="view-"]').forEach(s => s.hidden = true);
+
     Views.Home.mount();
     Views.Login.mount();
     Views.Dashboard.mount();
