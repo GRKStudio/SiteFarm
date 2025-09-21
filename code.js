@@ -172,8 +172,8 @@ const Telemetry = {
   datasetsByZone: new Map(), // k -> dataset index
   historyKey(devId){ return `sf_hist_${devId}`; }, // per-device
   maxPoints: 1000, // храним до 1000 точек на зону (можно увеличить)
-
   initChart(){
+    if(this.chart) return; // уже инициализирован
     const ctx = document.getElementById('chart')?.getContext('2d');
     if(!ctx) return;
     this.chart = new Chart(ctx, {
@@ -190,6 +190,7 @@ const Telemetry = {
       }
     });
   },
+
 
   ensureDataset(zoneLabel){
     if(this.datasetsByZone.has(zoneLabel)) return this.datasetsByZone.get(zoneLabel);
@@ -236,6 +237,8 @@ const Telemetry = {
     } catch(e){ console.warn('hist save failed', e); }
   },
 
+  
+
   loadHistoryToChart(deviceId){
     try{
       const key = this.historyKey(deviceId);
@@ -264,18 +267,95 @@ const Telemetry = {
     }catch(e){ console.warn('hist load failed', e); }
   },
 
-  // Парсим строку статуса и забираем значения зон
   parseAndFeed(deviceId, text, ts){
-    // Разбиваем по " | "
-    const parts = text.split('|').map(s=>s.trim());
-    parts.forEach(p=>{
-      // S<k>=<val>(M<min>..X<max>) Z<k>=MODE
-      const m = p.match(/^S(\d+)=(\d+)\(M(\d+)\.\.X(\d+)\)\s+Z\1=(AUTO|ON|OFF)$/i);
-      if(m){
-        const k = +m[1], val = +m[2];
-        this.pushPoint(deviceId, k, val, ts);
-      }
-    });
+    // Ищем все вхождения: S<k>=<val>(M<min>..X<max>) Z<k>=MODE
+    const re = /S(\d+)\s*=\s*(\d+)\s*\(\s*M\s*(\d+)\s*\.\.\s*X\s*(\d+)\s*\)\s*Z\1\s*=\s*(AUTO|ON|OFF)/ig;
+    let m, any = false;
+    while ((m = re.exec(text))) {
+      const k = +m[1];
+      const val = +m[2];
+      const min = +m[3];
+      const max = +m[4];
+      const mode = m[5].toUpperCase();
+      any = true;
+
+      // график
+      this.pushPoint(deviceId, k, val, ts);
+
+      // UI зон
+      Zones.update(k, {min, max, mode});
+    }
+
+    // дополнительно можно выцепить PUMP/LIGHT, если пригодится в UI:
+    // const pump = (text.match(/PUMP\s*=\s*(AUTO|ON|OFF)/i)||[])[1];
+    // const light = (text.match(/LIGHT\s*=\s*(AUTO|ON|OFF)/i)||[])[1];
+
+    return any;
+  }
+
+};
+
+// -------------------- Zones (UI ползунков и режимов) --------------------
+const Zones = {
+  container: Utils.qs('#zonesContainer'),
+  items: new Map(), // k -> {root,minEl,maxEl,modeEl}
+
+  ensure(k){
+    if(this.items.has(k)) return this.items.get(k);
+    const wrap = document.createElement('div');
+    wrap.className = 'card';
+    wrap.style.background = 'transparent';
+    wrap.id = `zone-${k}`;
+    wrap.innerHTML = `
+      <h2>Зона ${k} <span class="pill" id="mode-${k}">—</span></h2>
+      <div class="slider">
+        <div>MIN${k}</div>
+        <input type="range" min="0" max="4000" step="10" id="min-${k}">
+        <div><span id="minv-${k}">—</span></div>
+      </div>
+      <div class="slider">
+        <div>MAX${k}</div>
+        <input type="range" min="0" max="4000" step="10" id="max-${k}">
+        <div><span id="maxv-${k}">—</span></div>
+      </div>
+      <div class="zone-controls">
+        <button class="secondary" id="auto-${k}">Z${k} AUTO</button>
+        <button class="secondary" id="on-${k}">Z${k} ON</button>
+        <button class="secondary" id="off-${k}">Z${k} OFF</button>
+        <button id="apply-${k}">Применить MIN/MAX</button>
+      </div>
+    `;
+    this.container.appendChild(wrap);
+
+    // хэндлеры
+    Utils.qs(`#auto-${k}`).onclick = ()=> MQTT.publishCmd(`Z${k} AUTO`);
+    Utils.qs(`#on-${k}`).onclick   = ()=> MQTT.publishCmd(`Z${k} ON`);
+    Utils.qs(`#off-${k}`).onclick  = ()=> MQTT.publishCmd(`Z${k} OFF`);
+    Utils.qs(`#apply-${k}`).onclick= ()=>{
+      const min = +Utils.qs(`#min-${k}`).value, max = +Utils.qs(`#max-${k}`).value;
+      if(min>=max){ alert('MIN должен быть < MAX'); return; }
+      MQTT.publishCmd(`SET MIN${k} ${min}`);
+      MQTT.publishCmd(`SET MAX${k} ${max}`);
+      setTimeout(()=> MQTT.publishCmd('SHOW'), 150);
+    };
+
+    const item = {
+      root: wrap,
+      minEl: Utils.qs(`#min-${k}`),
+      maxEl: Utils.qs(`#max-${k}`),
+      minv:  Utils.qs(`#minv-${k}`),
+      maxv:  Utils.qs(`#maxv-${k}`),
+      modeEl: Utils.qs(`#mode-${k}`)
+    };
+    this.items.set(k, item);
+    return item;
+  },
+
+  update(k, {min, max, mode}){
+    const it = this.ensure(k);
+    if(min != null){ it.minEl.value = min; it.minv.textContent = String(min); }
+    if(max != null){ it.maxEl.value = max; it.maxv.textContent = String(max); }
+    if(mode){ it.modeEl.textContent = mode; }
   }
 };
 
