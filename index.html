@@ -86,19 +86,10 @@
   </div>
 
   <!-- libs: mqtt.js & chart.js (оставляем — будем использовать на следующих шагах) -->
-  <script type="importmap">
-    {
-      "imports": {
-        "react": "https://esm.sh/react@18",
-        "react-dom/client": "https://esm.sh/react-dom@18/client",
-        "@appletosolutions/reactbits": "https://esm.sh/@appletosolutions/reactbits@latest"
-      }
-    }
-  </script>
   <script type="module">
-    import React from "react";
-    import { createRoot } from "react-dom/client";
-    import { SpotlightCard } from "@appletosolutions/reactbits";
+    import React from "https://esm.sh/react@18";
+    import { createRoot } from "https://esm.sh/react-dom@18/client";
+    import { SpotlightCard } from "https://esm.sh/@appletosolutions/reactbits@latest?external=react,react-dom,framer-motion";
 
     const mount = (id, props, children) => {
       const el = document.getElementById(id);
@@ -142,6 +133,7 @@
   </script>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="code.js"></script>
+  <script defer src="code.js"></script>
+
 </body>
 </html>
