@@ -30,15 +30,24 @@ const Utils = {
   delCookie(name){ document.cookie = `${name}=; Max-Age=0; path=/`; },
   // роут /d/:id
   parseRoute(){
-    const path = location.pathname;
-    if (path.startsWith('/d/')) {
-      const id = decodeURIComponent(path.slice(3));
+    const h = location.hash || '#/';
+    if (h.startsWith('#/d/')) {
+      const id = decodeURIComponent(h.slice(4)); // после '#/d/'
       return { name:'device', params:{ deviceId:id } };
     }
     return { name:'home' };
   },
-  go(path){ history.pushState({}, '', path); App.router.handle(); },
-  replace(path){ history.replaceState({}, '', path); App.router.handle(); },
+  go(path){               // path: '/d/<id>' или '/'
+    location.hash = '#' + path;
+    App.router.handle();
+  },
+  replace(path){
+    const newHash = '#' + path;
+    if (location.hash !== newHash) {
+      location.replace(location.pathname + location.search + newHash);
+    }
+    App.router.handle();
+  },
 };
 
 // -------------------- Маленькая событийная шина --------------------
@@ -306,7 +315,7 @@ const Router = {
     }
   },
   mount(){
-    window.addEventListener('popstate', ()=> this.handle());
+    window.addEventListener('hashchange', ()=> this.handle());
     this.handle();
   }
 };
