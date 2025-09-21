@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Smart Farm — Web Control</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <!-- VIEW: Landing / Login -->
+    <section id="view-login" class="card" hidden>
+      <h1>Подключить устройство</h1>
+      <p class="pill">Введите DeviceID вашего ESP32. Мы запомним его в cookie и перенаправим на страницу устройства.</p>
+      <label>DeviceID</label>
+      <input id="loginDeviceId" placeholder="например: 6825DD48FF88" />
+      <div class="row" style="margin-top:8px">
+        <button id="btnProceed">Перейти к устройству</button>
+        <button class="secondary" id="btnUseCookie">Использовать сохранённый DeviceID</button>
+      </div>
+      <div class="footer">Совет: добавьте страницу в закладки уже в виде <code>/d/&lt;deviceId&gt;</code></div>
+    </section>
+
+    <!-- VIEW: Dashboard /d/:deviceId -->
+    <section id="view-dashboard" class="grid cols" hidden>
+      <!-- Боковая панель управления подключением -->
+      <aside class="card">
+        <h1>Устройство</h1>
+        <div class="badge">DeviceID: <code id="currentDeviceId">—</code></div>
+        <div class="row" style="margin-top:10px">
+          <button id="btnChangeDevice" class="secondary">Сменить устройство</button>
+          <button id="btnForgetDevice" class="secondary">Забыть cookie</button>
+        </div>
+
+        <h2 style="margin-top:18px">MQTT</h2>
+        <div class="row">
+          <div>
+            <label>Host</label>
+            <input id="mqttHost" value="broker.hivemq.com">
+          </div>
+          <div>
+            <label>WSS порт</label>
+            <input id="mqttPort" value="8884">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Путь</label>
+            <input id="mqttPath" value="/mqtt">
+          </div>
+          <div>
+            <label>Клиент ID</label>
+            <input id="clientId" placeholder="auto" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button id="btnConnect">Подключиться</button>
+          <button class="secondary" id="btnDisconnect">Отключиться</button>
+        </div>
+        <div style="margin-top:10px">
+          <span class="badge">Статус: <span id="connStatus">offline</span></span>
+        </div>
+        <div class="footer">Топики: <code id="topicsPreview">—</code></div>
+      </aside>
+
+      <!-- Основная панель (пока базовый каркас, чтобы было куда наращивать) -->
+      <main class="grid">
+        <div class="card">
+          <h1>Состояние</h1>
+          <div class="row" style="margin-bottom:8px">
+            <button id="btnShow">SHOW</button>
+            <button class="secondary" id="btnLightOn">LIGHT ON</button>
+            <button class="secondary" id="btnLightAuto">LIGHT AUTO</button>
+            <button class="secondary" id="btnPumpAuto">PUMP AUTO</button>
+          </div>
+          <div class="statusline" id="statusBox">— нет данных —</div>
+        </div>
+
+        <div class="card" id="zonesCard">
+          <h1>Зоны & Пороги</h1>
+          <div id="zonesContainer">После первого статуса (SHOW) зоны появятся здесь…</div>
+        </div>
+
+        <div class="card">
+          <h1>Графики влажности</h1>
+          <canvas id="chart"></canvas>
+        </div>
+      </main>
+    </section>
+  </div>
+
+  <!-- libs: mqtt.js & chart.js (оставляем — будем использовать на следующих шагах) -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="code.js"></script>
+</body>
+</html>
