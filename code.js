@@ -30,19 +30,19 @@ const Utils = {
   delCookie(name){ document.cookie = `${name}=; Max-Age=0; path=/`; },
   // роут /d/:id
   parseRoute(){
-    const h = location.hash || '#/';
-    if (h.startsWith('#/d/')) {
+    const h = location.hash || 'SiteFarm/';
+    if (h.startsWith('SiteFarm/d/')) {
       const id = decodeURIComponent(h.slice(4)); // после '#/d/'
       return { name:'device', params:{ deviceId:id } };
     }
     return { name:'home' };
   },
   go(path){               // path: '/d/<id>' или '/'
-    location.hash = '#' + path;
+    location.hash = path;
     App.router.handle();
   },
   replace(path){
-    const newHash = '#' + path;
+    const newHash = path;
     if (location.hash !== newHash) {
       location.replace(location.pathname + location.search + newHash);
     }
