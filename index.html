@@ -86,12 +86,20 @@
   </div>
 
   <!-- libs: mqtt.js & chart.js (оставляем — будем использовать на следующих шагах) -->
+  <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18",
+        "react-dom/client": "https://esm.sh/react-dom@18/client",
+        "@appletosolutions/reactbits": "https://esm.sh/@appletosolutions/reactbits@latest"
+      }
+    }
+  </script>
   <script type="module">
-    import React from "https://esm.sh/react@18";
-    import { createRoot } from "https://esm.sh/react-dom@18/client";
-    import { SpotlightCard } from "https://esm.sh/@appletosolutions/reactbits@latest?external=react,react-dom,framer-motion";
+    import React from "react";
+    import { createRoot } from "react-dom/client";
+    import { SpotlightCard } from "@appletosolutions/reactbits";
 
-    // helper: монтирует SpotlightCard с нужным контентом
     const mount = (id, props, children) => {
       const el = document.getElementById(id);
       if (!el) return;
