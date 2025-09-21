@@ -8,6 +8,12 @@
   --ok:#39d98a;
   --warn:#ffcf5a;
   --err:#ff6b6b;
+  --spot-size: 220px;              /* радиус спотлайта */
+  --spot-color: rgba(77,163,255,.18);
+  --border-spot-size: 180px;       /* радиус подсветки рамки */
+  --edge-size: 10px;               /* ширина светящейся кромки */
+  --edge-rgb: 147, 51, 234;          /* цвет свечения (фиолетовый) */
+  --wT: 0; --wR: 0; --wB: 0; --wL: 0;/* веса по краям — задаём из JS */
 }
 *{box-sizing:border-box}
 body{
@@ -126,44 +132,7 @@ canvas{
   font-size:12px
 }
 
-/* ----- Magic Bento ----- */
-.magic-bento{
-  position: relative;
-  overflow: hidden;
-  transform-style: preserve-3d;
-  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
-}
-.magic-bento::before{
-  content:"";
-  position:absolute; inset:-1px;
-  background: radial-gradient(150px 150px at var(--x,50%) var(--y,50%),
-              rgba(77,163,255,.28), rgba(77,163,255,0) 60%);
-  opacity:0; transition: opacity .25s ease;
-  pointer-events:none;
-}
-.magic-bento::after {
-  content:"";
-  position:absolute; inset:0; border-radius:inherit; padding:1px;
-  background: radial-gradient(200px 200px at var(--x,50%) var(--y,50%),
-              rgba(77,163,255,.9), transparent 60%);
-  
-  /* Маска — стандарт + вендорный префикс */
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
 
-  opacity:0;
-  transition: opacity .25s ease;
-  pointer-events:none;
-}
-.magic-bento:hover{
-  transform: perspective(800px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));
-  box-shadow: 0 10px 35px rgba(0,0,0,.35), 0 0 0 1px rgba(77,163,255,.35) inset;
-  border-color:#2b66dd;
-}
-.magic-bento:hover::before{ opacity:1; }
-.magic-bento:hover::after{ opacity:.6; }
 
 
 @media (max-width: 900px){
