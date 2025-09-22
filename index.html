@@ -7,7 +7,6 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <link rel="preconnect" href="https://unpkg.com">
   <link rel="stylesheet" href="style.css" />
-  <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
   <div class="wrap">
@@ -37,7 +36,7 @@
     <!-- VIEW: Dashboard /d/:deviceId -->
     <section id="view-dashboard" class="grid cols" hidden>
       <!-- Боковая панель управления подключением -->
-      <aside class="card magic-bento">
+      <aside class="card">
         <h1>Устройство</h1>
         <div class="badge">DeviceID: <code id="currentDeviceId">—</code></div>
         <div class="row" style="margin-top:10px">
@@ -78,18 +77,33 @@
 
       <!-- Основная панель (пока базовый каркас, чтобы было куда наращивать) -->
       <main class="grid">
-        <div id="rb-status"></div>
-        <div id="rb-zones"></div>
-        <div id="rb-chart"></div>
+        <div class="card magic-bento">
+          <h1>Состояние</h1>
+          <div class="row" style="margin-bottom:8px">
+            <button id="btnShow">SHOW</button>
+            <button class="secondary" id="btnLightOn">LIGHT ON</button>
+            <button class="secondary" id="btnLightAuto">LIGHT AUTO</button>
+            <button class="secondary" id="btnPumpAuto">PUMP AUTO</button>
+          </div>
+          <div class="statusline" id="statusBox">— нет данных —</div>
+        </div>
+
+        <div class="card magic-bento" id="zonesCard">
+          <h1>Зоны & Пороги</h1>
+          <div id="zonesContainer">После первого статуса (SHOW) зоны появятся здесь…</div>
+        </div>
+
+        <div class="card magic-bento">
+          <h1>Графики влажности</h1>
+          <canvas id="chart"></canvas>
+        </div>
       </main>
     </section>
   </div>
 
-  
+  <!-- libs: mqtt.js & chart.js (оставляем — будем использовать на следующих шагах) -->
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script defer src="code.js"></script>
-
-
+  <script src="code.js"></script>
 </body>
 </html>
