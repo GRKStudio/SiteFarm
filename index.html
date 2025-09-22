@@ -85,55 +85,7 @@
     </section>
   </div>
 
-  <!-- libs: mqtt.js & chart.js (оставляем — будем использовать на следующих шагах) -->
-  <script type="module">
-    // ПИНУЕМ версии, чтобы не было "скачков"
-    import React from "https://esm.sh/react@18.2.0";
-    import { createRoot } from "https://esm.sh/react-dom@18.2.0/client";
-    // помечаем peer-deps как external, чтобы reactbits не пытался тянуть свои
-    import { SpotlightCard } from "https://esm.sh/@appletosolutions/reactbits@latest?external=react,react-dom,framer-motion";
-
-    const mount = (id, props, children) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const root = createRoot(el);
-      root.render(React.createElement(SpotlightCard, props, ...children));
-    };
-
-    // Состояние
-    mount("rb-status",
-      { className: "card", radius: 220 },
-      [
-        React.createElement("h1", { key: "h" }, "Состояние"),
-        React.createElement("div", { key: "btns", className: "row", style:{marginBottom:"8px"} }, [
-          React.createElement("button", { id:"btnShow", key:"a" }, "SHOW"),
-          React.createElement("button", { className:"secondary", id:"btnLightOn", key:"b" }, "LIGHT ON"),
-          React.createElement("button", { className:"secondary", id:"btnLightAuto", key:"c" }, "LIGHT AUTO"),
-          React.createElement("button", { className:"secondary", id:"btnPumpAuto", key:"d" }, "PUMP AUTO"),
-        ]),
-        React.createElement("div", { key:"s", className:"statusline", id:"statusBox" }, "— нет данных —")
-      ]
-    );
-
-    // Зоны
-    mount("rb-zones",
-      { className: "card", radius: 220 },
-      [
-        React.createElement("h1", { key:"h" }, "Зоны & Пороги"),
-        React.createElement("div", { key:"c", id:"zonesContainer" }, "После первого статуса (SHOW) зоны появятся здесь…")
-      ]
-    );
-
-    // Графики
-    mount("rb-chart",
-      { className: "card", radius: 220 },
-      [
-        React.createElement("h1", { key:"h" }, "Графики влажности"),
-        React.createElement("canvas", { key:"c", id:"chart" })
-      ]
-    );
-  </script>
-  <!-- потом библиотеки и ТОЛЬКО ПОТОМ твой код -->
+  
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script defer src="code.js"></script>
