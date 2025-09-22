@@ -303,7 +303,7 @@ const Zones = {
   ensure(k){
     if(this.items.has(k)) return this.items.get(k);
     const wrap = document.createElement('div');
-    wrap.className = 'card magic-bento';
+    wrap.className = 'card';
     wrap.style.background = 'transparent';
     wrap.id = `zone-${k}`;
     wrap.innerHTML = `
@@ -326,7 +326,6 @@ const Zones = {
       </div>
     `;
     this.container.appendChild(wrap);
-    MagicBento.attach(wrap);
 
     // хэндлеры
     Utils.qs(`#auto-${k}`).onclick = ()=> MQTT.publishCmd(`Z${k} AUTO`);
@@ -490,33 +489,6 @@ const Views = {
   }
 };
 
-// -------------------- MagicBento (hover spotlight + tilt) --------------------
-const MagicBento = {
-  attach(el){
-    if(!el || el.__magicAttached) return;
-    el.__magicAttached = true;
-
-    el.addEventListener('pointermove', (e)=>{
-      const r = el.getBoundingClientRect();
-      const x = e.clientX - r.left, y = e.clientY - r.top;
-      el.style.setProperty('--x', `${x}px`);
-      el.style.setProperty('--y', `${y}px`);
-      const rx = ((r.height/2 - y)/r.height) * 6;
-      const ry = ((x - r.width/2)/r.width) * 6;
-      el.style.setProperty('--rx', `${rx}deg`);
-      el.style.setProperty('--ry', `${ry}deg`);
-    });
-
-    el.addEventListener('pointerleave', ()=>{
-      el.style.removeProperty('--x');
-      el.style.removeProperty('--y');
-      el.style.removeProperty('--rx');
-      el.style.removeProperty('--ry');
-    });
-  },
-  scan(){ document.querySelectorAll('.magic-bento').forEach((el)=> this.attach(el)); }
-};
-
 // -------------------- Router --------------------
 const Router = {
   handle(){
@@ -559,13 +531,9 @@ const App = {
     Views.Login.mount();
     Views.Dashboard.mount();
     this.router.mount();
-    MagicBento.scan();
     window.addEventListener('beforeunload', ()=> MQTT.disconnect());
   }
 };
-
-
-
 
 // Старт
 document.addEventListener('DOMContentLoaded', ()=> App.start());
